@@ -1,8 +1,6 @@
-// src/components/NewsList.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom"; // Import Link from react-router-dom
-import Tabs from "./Tabs"; // Import the Tabs component
+import Tabs from "./Tabs";
 
 const NewsList = () => {
   const [news, setNews] = useState([]);
@@ -20,15 +18,25 @@ const NewsList = () => {
   const [showOffline, setShowOffline] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [statusMessage, setStatusMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchOfflineNews = useCallback(() => {
+    const offlineArticles = categories.reduce((acc, cat) => {
+      const cachedNews = localStorage.getItem(`news-${cat}`);
+      if (cachedNews) {
+        acc = acc.concat(JSON.parse(cachedNews));
+      }
+      return acc;
+    }, []);
+    setNews(offlineArticles);
+  }, [categories]);
 
   useEffect(() => {
-    // Fetch bookmarks from local storage on component mount
     const savedBookmarks = localStorage.getItem("bookmarks");
     if (savedBookmarks) {
       setBookmarks(JSON.parse(savedBookmarks));
     }
 
-    // Event listeners for online/offline status
     const handleOnline = () => {
       setIsOffline(false);
       setStatusMessage("You are online now! You can access the latest news.");
@@ -42,7 +50,6 @@ const NewsList = () => {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Cleanup event listeners on component unmount
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
@@ -50,7 +57,6 @@ const NewsList = () => {
   }, []);
 
   useEffect(() => {
-    // Fetch news based on the selected category or offline mode
     if (!showBookmarks && !showOffline) {
       if (category === "all-news") {
         fetchAllNews();
@@ -60,11 +66,17 @@ const NewsList = () => {
     } else if (showOffline) {
       fetchOfflineNews();
     }
-  }, [category, showBookmarks, showOffline]);
+  }, [category, showBookmarks, showOffline, fetchOfflineNews]);
 
   const fetchAllNews = async () => {
     try {
-      const categoriesToFetch = ["sports", "business", "entertainment", "politics", "fashion"];
+      const categoriesToFetch = [
+        "sports",
+        "business",
+        "entertainment",
+        "politics",
+        "fashion",
+      ];
       const allNews = [];
 
       await Promise.all(
@@ -89,22 +101,25 @@ const NewsList = () => {
         `https://newsapi.org/v2/top-headlines?country=us&category=${category}&apiKey=9a45d8a7572c4bbeb1cd2e1bd99ae90c`
       );
       setNews(response.data.articles);
-      localStorage.setItem(`news-${category}`, JSON.stringify(response.data.articles));
+      localStorage.setItem(
+        `news-${category}`,
+        JSON.stringify(response.data.articles)
+      );
     } catch (error) {
       console.error(`Error fetching ${category} news:`, error);
     }
   };
 
-  const fetchOfflineNews = () => {
-    const offlineArticles = categories.reduce((acc, cat) => {
-      const cachedNews = localStorage.getItem(`news-${cat}`);
-      if (cachedNews) {
-        acc = acc.concat(JSON.parse(cachedNews));
-      }
-      return acc;
-    }, []);
-    setNews(offlineArticles);
+  const handleSearch = (event) => {
+    setSearchQuery(event.target.value.toLowerCase());
   };
+
+  const filteredNews = (showBookmarks ? bookmarks : news).filter((article) => {
+    return (
+      article.title.toLowerCase().includes(searchQuery) ||
+      article.description?.toLowerCase().includes(searchQuery)
+    );
+  });
 
   const handleShare = (article) => {
     if (navigator.share) {
@@ -126,7 +141,9 @@ const NewsList = () => {
     const isBookmarked = bookmarks.find((item) => item.url === article.url);
 
     if (isBookmarked) {
-      const filteredBookmarks = updatedBookmarks.filter((item) => item.url !== article.url);
+      const filteredBookmarks = updatedBookmarks.filter(
+        (item) => item.url !== article.url
+      );
       setBookmarks(filteredBookmarks);
       localStorage.setItem("bookmarks", JSON.stringify(filteredBookmarks));
     } else {
@@ -136,34 +153,60 @@ const NewsList = () => {
     }
   };
 
-  const isBookmarked = (url) => bookmarks.some((bookmark) => bookmark.url === url);
+  const isBookmarked = (url) =>
+    bookmarks.some((bookmark) => bookmark.url === url);
 
   return (
     <div className="news-links">
-      {/* Include Tabs component */}
       <Tabs />
 
       <h2>NEWS ARTICLES</h2>
-     
 
-      {/* Status message for online/offline status */}
       {statusMessage && (
         <div className={`status-message ${isOffline ? "offline" : "online"}`}>
           {statusMessage}
         </div>
       )}
 
+      <div className="search-bar">
+        <input
+          type="text"
+          placeholder="Search news..."
+          value={searchQuery}
+          onChange={handleSearch}
+        />
+      </div>
+
       <div className="category-filters">
-        <button onClick={() => { setShowBookmarks(false); setShowOffline(false); }} className={!showBookmarks && !showOffline ? "active" : ""}>
+        <button
+          onClick={() => {
+            setShowBookmarks(false);
+            setShowOffline(false);
+          }}
+          className={!showBookmarks && !showOffline ? "active" : ""}
+        >
           News
         </button>
-        <button onClick={() => { setShowBookmarks(true); setShowOffline(false); }} className={showBookmarks ? "active" : ""}>
+        <button
+          onClick={() => {
+            setShowBookmarks(true);
+            setShowOffline(false);
+          }}
+          className={showBookmarks ? "active" : ""}
+        >
           Bookmarks
         </button>
-        <button onClick={() => { setShowOffline(true); setShowBookmarks(false); }} className={showOffline ? "active" : ""}>
+        <button
+          onClick={() => {
+            setShowOffline(true);
+            setShowBookmarks(false);
+          }}
+          className={showOffline ? "active" : ""}
+        >
           Offline
         </button>
-        {!showBookmarks && !showOffline &&
+        {!showBookmarks &&
+          !showOffline &&
           categories.map((cat) => (
             <button
               key={cat}
@@ -176,10 +219,14 @@ const NewsList = () => {
       </div>
 
       <ul>
-        {(showBookmarks ? bookmarks : news).length > 0 ? (
-          (showBookmarks ? bookmarks : news).map((article) => (
+        {filteredNews.length > 0 ? (
+          filteredNews.map((article) => (
             <li key={article.url} className="news-item">
-              <img src={article.urlToImage} alt={article.title} className="news-image" />
+              <img
+                src={article.urlToImage}
+                alt={article.title}
+                className="news-image"
+              />
               <div className="news-content">
                 <h3>{article.title}</h3>
                 <p>
@@ -189,13 +236,23 @@ const NewsList = () => {
                   <strong>Content:</strong> {article.description}
                 </p>
                 <div className="button-group">
-                  <a href={article.url} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <button className="btn-read">Read More</button>
                   </a>
-                  <button className="btn-share" onClick={() => handleShare(article)}>
+                  <button
+                    className="btn-share"
+                    onClick={() => handleShare(article)}
+                  >
                     Share
                   </button>
-                  <button className="btn-bookmark" onClick={() => handleBookmark(article)}>
+                  <button
+                    className="btn-bookmark"
+                    onClick={() => handleBookmark(article)}
+                  >
                     {isBookmarked(article.url) ? "Unbookmark" : "Bookmark"}
                   </button>
                 </div>
@@ -203,7 +260,13 @@ const NewsList = () => {
             </li>
           ))
         ) : (
-          <p>{showBookmarks ? "No bookmarks available" : showOffline ? "No offline articles available" : "No news available"}</p>
+          <p>
+            {showBookmarks
+              ? "No bookmarks available"
+              : showOffline
+              ? "No offline articles available"
+              : "No news available"}
+          </p>
         )}
       </ul>
     </div>

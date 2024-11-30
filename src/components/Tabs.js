@@ -1,7 +1,7 @@
-// src/components/Tabs.js
+
 import React from "react";
-import { Link } from "react-router-dom"; // Import Link from react-router-dom
-import './Tabs.css'; // Import the CSS for tabs
+import { Link } from "react-router-dom";
+import './Tabs.css'; 
 
 const Tabs = () => {
   return (
